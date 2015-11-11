@@ -4,18 +4,7 @@ const EventEmitter = require('fast-event-emitter');
 const util = require('util');
 const TWEEN = require('tween.js');
 
-const path = "images/";
-const format = '.jpg';
-const urls = [
-	path + 'px' + format, path + 'nx' + format,
-	path + 'py' + format, path + 'ny' + format,
-	path + 'pz' + format, path + 'nz' + format
-];
-const reflectionCube = THREE.ImageUtils.loadTextureCube( urls );
-reflectionCube.format = THREE.RGBFormat;
-
 const materials = {
-	shiny: new THREE.MeshPhongMaterial( { color: 0x99ff99, specular: 0x440000, envMap: reflectionCube, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} ),
 	boring2: new THREE.MeshPhongMaterial( { color: 0xC0B9BB, specular: 0, shading: THREE.FlatShading, side: THREE.DoubleSide, transparent: true, opacity: 0.2 } ),
 	wireframe: new THREE.MeshBasicMaterial( { color: 0xFFFFFF, wireframe: true } )
 };
@@ -24,6 +13,32 @@ var l = new THREE.ObjectLoader();
 const loadScene = (id) => new Promise(function (resolve, reject) {
 	l.load('models/' + id + '.json', resolve, undefined, reject);
 });
+
+function pickObjects(root, ...namesIn) {
+
+	const collection = {};
+	const names = new Set(namesIn);
+
+	(function pickObjects(root) {
+		if (root.children) {
+			root.children.forEach(node => {
+				if (names.has(node.name)) {
+					collection[node.name] = node;
+					names.delete(node.name);
+				}
+				if (names.size) {
+					pickObjects(node);
+				}
+			});
+		}
+	})(root);
+
+	if (names.size) {
+		console.warn('Not all objects found: ' + names.values().next().value + ' missing');
+	}
+
+	return collection;
+}
 
 function myThreeFromJSON(id, target) {
 	return loadScene(id).then(s => new MyThree(s, target));
@@ -35,11 +50,19 @@ function MyThree(scene, target = document.body){
 
 	this.scene = scene || new THREE.Scene();
 
-	const camera = new THREE.PerspectiveCamera( 75, target.scrollWidth / target.scrollHeight, 0.5, 20 );
-	camera.height = 2;
-	camera.position.set(0, camera.height, 0);
-	camera.lookAt(new THREE.Vector3(0, camera.height, -9));
-	camera.rotation.y += Math.PI;
+	let camera = pickObjects(this.scene, 'Camera').Camera;
+
+	if (!camera) {
+		console.log(camera);
+		camera = new THREE.PerspectiveCamera( 75, target.scrollWidth / target.scrollHeight, 0.5, 20 );
+		camera.position.set(0, 2, 0);
+		camera.lookAt(new THREE.Vector3(0, camera.height, -9));
+		camera.rotation.y += Math.PI;
+	}
+	camera.height = camera.position.y; // reference value for how high the camera should be
+									   // above the ground to maintain the illusion of presence
+	camera.fov = 75;
+
 	this.camera = camera;
 
 	const hud = new THREE.Object3D();
@@ -49,7 +72,7 @@ function MyThree(scene, target = document.body){
 	scene.add(camera);
 	this.hud = hud;
 
-	const renderer = new THREE.WebGLRenderer( { antialias: false, alpha: true } );
+	const renderer = new THREE.WebGLRenderer( { antialias: false } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	
 	this.renderMethod = renderer;
@@ -80,7 +103,7 @@ function MyThree(scene, target = document.body){
 		const l = physicsObjects.length;
 
 		// iterate over the physics physicsObjects
-		for ( let i,j=0; j<l;j++ ) {
+		for ( let j=0; j<l;j++ ) {
 
 			const i = physicsObjects[j];
 			if (threeObjectsConnectedToPhysics[i.id]) {
@@ -139,31 +162,7 @@ function MyThree(scene, target = document.body){
 		}
 	};
 
-	this.pickObjects = function(root, ...namesIn) {
-
-		const collection = {};
-		const names = new Set(namesIn);
-
-		(function pickObjects(root) {
-			if (root.children) {
-				root.children.forEach(node => {
-					if (names.has(node.name)) {
-						collection[node.name] = node;
-						names.delete(node.name);
-					}
-					if (names.size) {
-						pickObjects(node);
-					}
-				});
-			}
-		})(root);
-
-		if (names.size) {
-			console.warn('Not all objects found: ' + names.values().next().value + ' missing');
-		}
-
-		return collection;
-	};
+	this.pickObjects = pickObjects;
 
 
 	this.useCardboard = () => {

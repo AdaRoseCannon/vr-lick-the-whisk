@@ -2,19 +2,9 @@
 'use strict';
 const addScript = require('./lib/loadScript'); // Promise wrapper for script loading
 const VerletWrapper = require('./lib/verletwrapper'); // Wrapper of the verlet worker
-const VRTarget = require('./lib/vrtarget'); // Append iframes to the page and provide a control interface
 const textSprite = require('./lib/textSprite'); // Generally sprites from canvas
-const GoTargetWorld = require('./lib/gotargets.js'); // Tool for making interactive VR elements
+const CameraInteractions = require('./lib/camerainteractions'); // Tool for making interactive VR elements
 const TWEEN = require('tween.js');
-
-const STATE_PAUSED = 0;
-const STATE_PLAYING = 1;
-
-const STATE_HUB_OPEN = 0;
-const STATE_HUB_CLOSED = 1;
-
-let animState = STATE_PLAYING;
-let hubState = STATE_HUB_OPEN;
 
 // no hsts so just redirect to https
 if (window.location.protocol !== "https:" && window.location.hostname !== 'localhost') {
@@ -55,42 +45,55 @@ serviceWorker()
 	addScript('https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/SkyShader.js'),
 	addScript('https://cdn.rawgit.com/richtr/threeVR/master/js/DeviceOrientationController.js')
 ]))
-.then(() => require('./lib/three').myThreeFromJSON('hub'))
+.then(() => require('./lib/three').myThreeFromJSON('Kitchen/lickthewhisk'))
 .then(three => {
 	console.log('Ready');
 
-	const frame = new VRTarget(); // Setup iframe for loading sites into
+	const textureLoader = new THREE.TextureLoader();
+	const cubeTextureLoader = new THREE.CubeTextureLoader();
+	const toTexture = three.pickObjects(three.scene, 'Room', 'Counter');
+	const toShiny = three.pickObjects(three.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003');
+	Object.keys(toTexture).forEach(name => {
+		textureLoader.load(`models/Kitchen/${name}Bake.png`, map => toTexture[name].material = new THREE.MeshBasicMaterial({map}));
+	});
 
-	three.deviceOrientation({manualControl: true}); // Allow clicking and dragging
+	const path = "models/Kitchen/envmap/";
+	const format = '.png';
+	const urls = [
+		path + '0004' + format, // +x
+		path + '0002' + format, // -x
+		path + '0006' + format, // +y
+		path + '0005' + format, // -y
+		path + '0001' + format, // +z
+		path + '0003' + format  // -z
+	];
+	cubeTextureLoader.load(urls, envMap => {
+		const copper = new THREE.MeshPhongMaterial( { color: 0x99ff99, specular: 0x440000, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
+		const aluminium = new THREE.MeshPhongMaterial( { color: 0x888888, specular: 0xaaaaaa, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
+		const chocolate = new THREE.MeshPhongMaterial( { color: toShiny.LickTheWhisk.material.color, specular: 0xaaaaaa, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
+		Object.keys(toShiny).forEach(name => {
+			toShiny[name].material = copper;
+		});
 
-	const goTargetWorld = new GoTargetWorld(three);
+		toShiny.Whisk.material = aluminium;
+		toShiny.LickTheWhisk.material = chocolate;
+	});
+
+	const goTargetWorld = new CameraInteractions(three.domElement);
 
 	three.useSky();
 	three.useCardboard();
 
-	const dome = three.pickObjects(three.scene, 'dome').dome;
-	dome.material = three.materials.boring2;
-	three.scene.remove(dome);
+	three.deviceOrientation({manualControl: true}); // Allow clicking and dragging to move the camera whilst testing
 
-	const grid = new THREE.GridHelper( 10, 1 );
-	grid.setColors( 0xff0000, 0xffffff );
-	three.scene.add( grid );
+	three.deviceOrientationController
+	.addEventListener('userinteractionend', function () {
+		goTargetWorld.interact({type: 'click'});
+	}); // Allow it still be interacted with when clicks are hijacked
 
 	// Brand lights
-	const ambientLight = new THREE.AmbientLight( 0xc0b9bb );
+	const ambientLight = new THREE.AmbientLight( 0xddedff );
 	three.scene.add( ambientLight );
-
-	const pLight0 = new THREE.DirectionalLight( 0xC0B9BB, 0.5 );
-	pLight0.position.set( 0, 1, 3 );
-	three.scene.add( pLight0 );
-
-	const pLight1 = new THREE.DirectionalLight( 0xF9CCFF, 0.5 );
-	pLight1.position.set( 8, -3, 0 );
-	three.scene.add( pLight1 );
-
-	const pLight2 = new THREE.DirectionalLight( 0xE3FFAE, 0.5 );
-	pLight2.position.set( -8, -3, -3 );
-	three.scene.add( pLight2 );
 
 	// Run the verlet physics
 	const verlet = new VerletWrapper();
@@ -107,7 +110,8 @@ serviceWorker()
 		let waitingForPoints = false;
 		requestAnimationFrame(function animate(time) {
 			requestAnimationFrame(animate);
-			if (animState !== STATE_PLAYING) return;
+			goTargetWorld.detectInteractions(three.camera);
+
 			if (!waitingForPoints) {
 				verlet.getPoints().then(points => {
 					three.updateObjects(points);
@@ -124,23 +128,6 @@ serviceWorker()
 		const sprite = new THREE.Sprite(material);
 		three.hud.add(sprite);
 
-		function loadDoc(url) {
-
-			// Display the loading graphic
-
-			// Get the frame to show 
-			return frame.load(url)
-			.then(() => {
-				// remove the loading graphic
-				console.log('loaded %s', url);
-			});
-		}
-
-		function removeDoc() {
-			frame.unload();
-			return;
-		}
-
 		function addButton(str) {
 			const sprite = textSprite(str, {
 				fontsize: 18,
@@ -153,69 +140,6 @@ serviceWorker()
 			return goTargetWorld.makeTarget(sprite);
 		}
 
-		// Set up the dome breaking down and building back
-		require('./lib/explodeDome')(dome, three, verlet)
-		.then(domeController => {
-			window.addEventListener('dblclick', () => domeController.toggle());
-			window.addEventListener('touchend', () => domeController.toggle());
-
-			function tweenDomeOpacity(opacity, time = 1000) {
-				if (opacity !== undefined && opacity !== dome.material.opacity) {
-					return new Promise(resolve => new TWEEN.Tween(dome.material)
-					    .to({ opacity }, time)
-					    .easing(TWEEN.Easing.Cubic.Out)
-					    .start()
-					    .onComplete(resolve));
-				} else {
-					return Promise.resolve();
-				}
-			}
-
-			function showDocument(url) {
-				hubState = STATE_HUB_CLOSED;
-				tweenDomeOpacity(1)
-				.then(() => three.skyBox.visible = false)
-				.then(() => loadDoc(url))
-				.then(() => domeController.destroy())
-				.then(() => tweenDomeOpacity(0, 4000))
-				.then(() => {
-					if (hubState === STATE_HUB_CLOSED) {
-						three.domElement.style.pointerEvents = 'none';
-						domeController.mesh.visible = false;
-						animState = STATE_PAUSED;
-						three.scene.visible = false;
-						three.render();
-					}
-				});
-			}
-
-			function closeDocument() {
-				three.scene.visible = true;
-				hubState = STATE_HUB_OPEN;
-				console.log(animState);
-				animState = STATE_PLAYING;
-				domeController.mesh.visible = true;
-				Promise.all([domeController.restore(), tweenDomeOpacity(1, 2000)])
-				.then(() => removeDoc())
-				.then(() => three.domElement.style.pointerEvents = 'auto')
-				.then(() => three.skyBox.visible = true)
-				.then(() => tweenDomeOpacity(0.2));
-			}
-
-			window.showDocument = showDocument;
-			window.closeDocument = closeDocument;
-			
-			const lightHouseDemoButton = addButton('Load Demo');
-			lightHouseDemoButton.on('click', () => showDocument('https://adaroseedwards.github.io/cardboard2/index.html#vr'));
-
-		});	
-
-		function reset() {
-			three.camera.position.set(0, three.camera.height, 0);
-		}
-
-		// Set initial properties
-		reset();
 		window.three = three;
 	});
 });
