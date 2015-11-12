@@ -45,14 +45,21 @@ serviceWorker()
 	addScript('https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/SkyShader.js'),
 	addScript('https://cdn.rawgit.com/richtr/threeVR/master/js/DeviceOrientationController.js')
 ]))
-.then(() => require('./lib/three').myThreeFromJSON('Kitchen/lickthewhisk'))
-.then(three => {
+.then(() => require('./lib/threeHelper')
+	.myThreeFromJSON('Kitchen/lickthewhisk',
+		{
+			camera: 'Camera',
+			target: document.body
+		}
+	)
+)
+.then(threeHelper => {
 	console.log('Ready');
 
 	const textureLoader = new THREE.TextureLoader();
 	const cubeTextureLoader = new THREE.CubeTextureLoader();
-	const toTexture = three.pickObjects(three.scene, 'Room', 'Counter');
-	const toShiny = three.pickObjects(three.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003');
+	const toTexture = threeHelper.pickObjectsHelper(threeHelper.scene, 'Room', 'Counter');
+	const toShiny = threeHelper.pickObjectsHelper(threeHelper.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003');
 	Object.keys(toTexture).forEach(name => {
 		textureLoader.load(`models/Kitchen/${name}Bake.png`, map => toTexture[name].material = new THREE.MeshBasicMaterial({map}));
 	});
@@ -79,21 +86,25 @@ serviceWorker()
 		toShiny.LickTheWhisk.material = chocolate;
 	});
 
-	const goTargetWorld = new CameraInteractions(three.domElement);
+	const goTargetWorld = new CameraInteractions(threeHelper.domElement);
 
-	three.useSky();
-	three.useCardboard();
+	// Add a pretty skybox
+	const skyBox = require('./lib/sky')();
+	skyBox.scale.multiplyScalar(0.00004);
+	threeHelper.scene.add(skyBox);
 
-	three.deviceOrientation({manualControl: true}); // Allow clicking and dragging to move the camera whilst testing
+	threeHelper.useCardboard();
 
-	three.deviceOrientationController
+	threeHelper.deviceOrientation({manualControl: true}); // Allow clicking and dragging to move the camera whilst testing
+
+	threeHelper.deviceOrientationController
 	.addEventListener('userinteractionend', function () {
 		goTargetWorld.interact({type: 'click'});
 	}); // Allow it still be interacted with when clicks are hijacked
 
 	// Brand lights
 	const ambientLight = new THREE.AmbientLight( 0xddedff );
-	three.scene.add( ambientLight );
+	threeHelper.scene.add( ambientLight );
 
 	// Run the verlet physics
 	const verlet = new VerletWrapper();
@@ -110,23 +121,23 @@ serviceWorker()
 		let waitingForPoints = false;
 		requestAnimationFrame(function animate(time) {
 			requestAnimationFrame(animate);
-			goTargetWorld.detectInteractions(three.camera);
+			goTargetWorld.detectInteractions(threeHelper.camera);
 
 			if (!waitingForPoints) {
 				verlet.getPoints().then(points => {
-					three.updateObjects(points);
+					threeHelper.updateObjects(points);
 					waitingForPoints = false;
 				});
 				waitingForPoints = true;
 			}
-			three.render();
+			threeHelper.render();
 			TWEEN.update(time);
 		});
 
 		const map = THREE.ImageUtils.loadTexture( "images/reticule.png" );
 		const material = new THREE.SpriteMaterial( { map: map, color: 0xffffff, fog: false, transparent: true } );
 		const sprite = new THREE.Sprite(material);
-		three.hud.add(sprite);
+		threeHelper.hud.add(sprite);
 
 		function addButton(str) {
 			const sprite = textSprite(str, {
@@ -134,12 +145,12 @@ serviceWorker()
 				fontface: 'Iceland',
 				borderThickness: 20
 			});
-			three.scene.add(sprite);
+			threeHelper.scene.add(sprite);
 			sprite.position.set(5,5,5);
 			sprite.material.transparent = true;
 			return goTargetWorld.makeTarget(sprite);
 		}
 
-		window.three = three;
+		window.threeHelper = threeHelper;
 	});
 });
