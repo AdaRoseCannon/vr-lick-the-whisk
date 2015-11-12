@@ -54,7 +54,7 @@ function MyThree(scene, target = document.body){
 
 	if (!camera) {
 		console.log(camera);
-		camera = new THREE.PerspectiveCamera( 75, target.scrollWidth / target.scrollHeight, 0.5, 20 );
+		camera = new THREE.PerspectiveCamera( 75, target.scrollWidth / target.scrollHeight, 0.5, 100 );
 		camera.position.set(0, 2, 0);
 		camera.lookAt(new THREE.Vector3(0, camera.height, -9));
 		camera.rotation.y += Math.PI;
