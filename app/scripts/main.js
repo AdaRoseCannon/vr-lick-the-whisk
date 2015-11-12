@@ -90,7 +90,7 @@ serviceWorker()
 
 	// Add a pretty skybox
 	const skyBox = require('./lib/sky')();
-	skyBox.scale.multiplyScalar(0.00004);
+	skyBox.scale.multiplyScalar(0.0002);
 	threeHelper.scene.add(skyBox);
 
 	threeHelper.useCardboard();
