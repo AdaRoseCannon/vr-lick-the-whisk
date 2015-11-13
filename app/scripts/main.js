@@ -58,8 +58,8 @@ serviceWorker()
 
 	const textureLoader = new THREE.TextureLoader();
 	const cubeTextureLoader = new THREE.CubeTextureLoader();
-	const toTexture = threeHelper.pickObjectsHelper(threeHelper.scene, 'Room', 'Counter');
-	const toShiny = threeHelper.pickObjectsHelper(threeHelper.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003');
+	const toTexture = threeHelper.pickObjectsHelper(threeHelper.scene, 'Room', 'Counter', 'Cake');
+	const toShiny = threeHelper.pickObjectsHelper(threeHelper.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003', 'Fridge');
 	Object.keys(toTexture).forEach(name => {
 		textureLoader.load(`models/Kitchen/${name}Bake.png`, map => toTexture[name].material = new THREE.MeshBasicMaterial({map}));
 	});
@@ -75,15 +75,19 @@ serviceWorker()
 		path + '0003' + format  // -z
 	];
 	cubeTextureLoader.load(urls, envMap => {
-		const copper = new THREE.MeshPhongMaterial( { color: 0x99ff99, specular: 0x440000, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
-		const aluminium = new THREE.MeshPhongMaterial( { color: 0x888888, specular: 0xaaaaaa, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
-		const chocolate = new THREE.MeshPhongMaterial( { color: toShiny.LickTheWhisk.material.color, specular: 0xaaaaaa, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
-		Object.keys(toShiny).forEach(name => {
-			toShiny[name].material = copper;
-		});
+		const copper = new THREE.MeshPhongMaterial( { color: 0x99ff99, specular: 0x772222, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
+		const aluminium = new THREE.MeshPhongMaterial( { color: 0x888888, specular: 0x999999, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
+		const chocolate = new THREE.MeshPhongMaterial( { color: toShiny.LickTheWhisk.material.color, specular: 0x999999, envMap, combine: THREE.MixOperation, reflectivity: 0.3, metal: true} );
 
+		toShiny['SaucePan'].material = copper;
+		toShiny['SaucePan.001'].material = copper;
+		toShiny['SaucePan.002'].material = copper;
+		toShiny['SaucePan.003'].material = copper;
 		toShiny.Whisk.material = aluminium;
 		toShiny.LickTheWhisk.material = chocolate;
+
+		textureLoader.load(`models/Kitchen/FridgeBake.png`, map => toShiny.Fridge.material = new THREE.MeshPhongMaterial({map, envMap, combine: THREE.MixOperation, specular: 0x999999, reflectivity: 0.3, metal: true, side: THREE.DoubleSide }));
+
 	});
 
 	const goTargetWorld = new CameraInteractions(threeHelper.domElement);
