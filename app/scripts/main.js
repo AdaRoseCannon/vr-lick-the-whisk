@@ -55,6 +55,11 @@ serviceWorker()
 )
 .then(threeHelper => {
 	console.log('Ready');
+	window.threeHelper = threeHelper; // make it available for debugging
+
+	/**
+	 * Update textures to Baked ones and add envmap
+	 */
 
 	const textureLoader = new THREE.TextureLoader();
 	const cubeTextureLoader = new THREE.CubeTextureLoader();
@@ -90,25 +95,36 @@ serviceWorker()
 
 	});
 
-	const goTargetWorld = new CameraInteractions(threeHelper.domElement);
+	// Ambiant light
+	const ambientLight = new THREE.AmbientLight( 0xcccccc );
+	threeHelper.scene.add( ambientLight );
 
 	// Add a pretty skybox
 	const skyBox = require('./lib/sky')();
 	skyBox.scale.multiplyScalar(0.0002);
 	threeHelper.scene.add(skyBox);
 
-	threeHelper.useCardboard();
+	/**
+	 * Add a targeting reticule to the HUD to help align what the user is looking at
+	 */
 
-	threeHelper.deviceOrientation({manualControl: true}); // Allow clicking and dragging to move the camera whilst testing
+	textureLoader.load("images/reticule.png", map => {
+		const material = new THREE.SpriteMaterial( { map, fog: false, transparent: true } );
+		const sprite = new THREE.Sprite(material);
+		threeHelper.hud.add(sprite);
+	});
+
+	/**
+	 * Set up interactivity from the camera.
+	 */
+
+	const cameraInteractivityWorld = new CameraInteractions(threeHelper.domElement);
 
 	threeHelper.deviceOrientationController
 	.addEventListener('userinteractionend', function () {
-		goTargetWorld.interact({type: 'click'});
-	}); // Allow it still be interacted with when clicks are hijacked
+		cameraInteractivityWorld.interact({type: 'click'});
+	});
 
-	// Brand lights
-	const ambientLight = new THREE.AmbientLight( 0xddedff );
-	threeHelper.scene.add( ambientLight );
 
 	// Run the verlet physics
 	const verlet = new VerletWrapper();
@@ -122,10 +138,20 @@ serviceWorker()
 	})
 	.then(function () {
 		
+
+		/**
+		 * Main Render Loop
+		 *
+		 * Each request animation frame render is called
+		 * And a request is made to the verlet physics worker
+		 * to calculate a new lot of physics calculations to update
+		 * our simulation.
+		 */
+
 		let waitingForPoints = false;
 		requestAnimationFrame(function animate(time) {
 			requestAnimationFrame(animate);
-			goTargetWorld.detectInteractions(threeHelper.camera);
+			cameraInteractivityWorld.detectInteractions(threeHelper.camera);
 
 			if (!waitingForPoints) {
 				verlet.getPoints().then(points => {
@@ -138,11 +164,6 @@ serviceWorker()
 			TWEEN.update(time);
 		});
 
-		const map = THREE.ImageUtils.loadTexture( "images/reticule.png" );
-		const material = new THREE.SpriteMaterial( { map: map, color: 0xffffff, fog: false, transparent: true } );
-		const sprite = new THREE.Sprite(material);
-		threeHelper.hud.add(sprite);
-
 		function addButton(str) {
 			const sprite = textSprite(str, {
 				fontsize: 18,
@@ -152,9 +173,8 @@ serviceWorker()
 			threeHelper.scene.add(sprite);
 			sprite.position.set(5,5,5);
 			sprite.material.transparent = true;
-			return goTargetWorld.makeTarget(sprite);
+			return cameraInteractivityWorld.makeTarget(sprite);
 		}
 
-		window.threeHelper = threeHelper;
 	});
 });

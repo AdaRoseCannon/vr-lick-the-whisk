@@ -3,11 +3,22 @@
 const EventEmitter = require('fast-event-emitter');
 const util = require('util');
 
+
+/**
+ * Use the json loader to load json files from the default location
+ */
+
 var l = new THREE.ObjectLoader();
 const loadScene = (id) => new Promise(function (resolve, reject) {
 	l.load('models/' + id + '.json', resolve, undefined, reject);
 });
 
+/**
+ * Helper for picking objects from a scene
+ * @param  {Object3d}    root    root Object3d e.g. a scene or a mesh
+ * @param  {...string} namesIn list of namesd to find e.g. 'Camera' or 'Floor'
+ * @return {Object map}          map of names to objects {'Camera': (THREE.Camera with name Camera), 'Floor': (THREE.Mesh with name Floor)}
+ */
 function pickObjectsHelper(root, ...namesIn) {
 
 	const collection = {};
@@ -34,6 +45,9 @@ function pickObjectsHelper(root, ...namesIn) {
 	return collection;
 }
 
+/**
+ * Load the scene with file name id and return the helper
+ */
 function myThreeFromJSON(id, options) {
 	return loadScene(id).then(scene => {
 		options.scene = scene;
@@ -52,15 +66,41 @@ function MyThreeHelper(options){
 
 	EventEmitter.call(this);
 
+	options.target = options.target || document.body;
+
+	const renderer = new THREE.WebGLRenderer( { antialias: false } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+
+	options.target.appendChild(renderer.domElement);
+	this.domElement = renderer.domElement;
+
+
+
 	/**
-	 * Set up rendering
+	 * Set up stereo effect renderer
 	 */
 
-	options.target = options.target || document.body;
+	const effect = new THREE.StereoEffect(renderer);
+	effect.eyeSeparation = 0.008;
+	effect.focalLength = 0.25;
+	effect.setSize( window.innerWidth, window.innerHeight );
+	this.renderMethod = effect;
+
+
+
+	/**
+	 * Set up the scene to be rendered or create a new one
+	 */
 
 	this.scene = options.scene || new THREE.Scene();
 
-	let camera = pickObjectsHelper(this.scene, options.camera).Camera;
+
+
+	/**
+	 * Set up camera either one from the scene or make a new one
+	 */
+	
+	let camera = options.camera ? pickObjectsHelper(this.scene, options.camera).Camera : undefined;
 
 	if (!camera) {
 		console.log(camera);
@@ -74,54 +114,67 @@ function MyThreeHelper(options){
 	camera.fov = 75;
 
 	this.camera = camera;
-	const renderer = new THREE.WebGLRenderer( { antialias: false } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	
-	this.renderMethod = renderer;
-	
+
+
+
+	/**
+	 * Handle window resizes/rotations
+	 */
+
 	const setAspect = () => {
 		this.renderMethod.setSize( options.target.scrollWidth, options.target.scrollHeight );
-		camera.aspect = options.target.scrollWidth / options.target.scrollHeight;
-		camera.updateProjectionMatrix();
+		this.camera.aspect = options.target.scrollWidth / options.target.scrollHeight;
+		this.camera.updateProjectionMatrix();
 	};
 	window.addEventListener('resize', setAspect);
 	setAspect();
 
-	options.target.appendChild(renderer.domElement);
-	this.domElement = renderer.domElement;
-
-	// This is called to request a render
-	this.render = () => {
-
-		// note: three.js includes requestAnimationFrame shim
-		this.emit('prerender');
-		this.renderMethod.render(this.scene, camera);
-	};
-
-	// Change render method to the stereo renderer (one for each eye)
-	this.useCardboard = () => {
-
-		const effect = new THREE.StereoEffect(renderer);
-		setAspect();
-		effect.eyeSeparation = 0.008;
-		effect.focalLength = 0.25;
-		effect.setSize( window.innerWidth, window.innerHeight );
-		this.renderMethod = effect;
-	};
 
 
 	/**
+	 * Set up head tracking
+	 */
+
+	 // provide dummy element to prevent touch/click hijacking.
+	const element = location.hostname !== 'localhost' ? document.createElement("DIV") : undefined;
+	this.deviceOrientationController = new DeviceOrientationController(this.camera, element);
+	this.deviceOrientationController.connect();
+	this.on('prerender', () => this.deviceOrientationController.update());
+
+
+
+	/**
+	 * This should be called in the main animation loop
+	 */
+
+	this.render = () => {
+		this.emit('prerender');
+		this.renderMethod.render(this.scene, camera);
+		this.emit('postrender');
+	};
+
+
+
+	/**
+	 * Heads up Display
+	 * 
 	 * Add a heads up display object to the camera
+	 * Meshes and Sprites can be added to this to appear to be close to the user.
 	 */
 
 	const hud = new THREE.Object3D();
 	hud.position.set(0, 0, -2.1);
 	hud.scale.set(0.2, 0.2, 0.2);
 	camera.add(hud);
-	this.scene.add(this.camera);
+	this.scene.add(this.camera); // add the camera to the scene so that the hud is rendered
 	this.hud = hud;
 
+
+
+
 	/**
+	 * ANIMATION
+	 * 
 	 * A map of physics object id to three.js object 3d so we can update all the positions
 	 */
 
@@ -159,28 +212,12 @@ function MyThreeHelper(options){
 		this.scene.add(mesh);
 	};
 
-	/**
-	 * Turn on head tracking if manual control is disabled it won't steal mouse/touch events
-	 */
-	this.deviceOrientation = ({manualControl}) => {
 
-		// provide dummy element to prevent touch/click hijacking.
-		const element = manualControl ? renderer.domElement : document.createElement("DIV");
-
-		if (this.deviceOrientationController) {
-			this.deviceOrientationController.disconnect();
-			this.deviceOrientationController.element = element;
-			this.deviceOrientationController.connect();
-		} else {
-			this.deviceOrientationController = new DeviceOrientationController(this.camera, element);
-			this.deviceOrientationController.connect();
-			this.on('prerender', () => this.deviceOrientationController.update());
-		}
-	};
 
 	/**
 	 * Make the object picker available on this object
 	 */
+
 	this.pickObjectsHelper = pickObjectsHelper;
 }
 util.inherits(MyThreeHelper, EventEmitter);
