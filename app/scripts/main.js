@@ -42,7 +42,6 @@ serviceWorker()
 ]))
 .then(() => Promise.all([
 	addScript('https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/effects/StereoEffect.js'),
-	addScript('https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/SkyShader.js'),
 	addScript('https://cdn.rawgit.com/richtr/threeVR/master/js/DeviceOrientationController.js')
 ]))
 .then(() => require('./lib/threeHelper')
@@ -55,7 +54,6 @@ serviceWorker()
 )
 .then(threeHelper => {
 	console.log('Ready');
-	window.threeHelper = threeHelper; // make it available for debugging
 
 	/**
 	 * Update textures to Baked ones and add envmap
@@ -98,11 +96,6 @@ serviceWorker()
 	// Ambiant light
 	const ambientLight = new THREE.AmbientLight( 0xcccccc );
 	threeHelper.scene.add( ambientLight );
-
-	// Add a pretty skybox
-	const skyBox = require('./lib/sky')();
-	skyBox.scale.multiplyScalar(0.0002);
-	threeHelper.scene.add(skyBox);
 
 	/**
 	 * Add a targeting reticule to the HUD to help align what the user is looking at
