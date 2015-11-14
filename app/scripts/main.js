@@ -4,6 +4,7 @@ const addScript = require('./lib/loadScript'); // Promise wrapper for script loa
 const VerletWrapper = require('./lib/verletwrapper'); // Wrapper of the verlet worker
 const textSprite = require('./lib/textSprite'); // Generally sprites from canvas
 const CameraInteractions = require('./lib/camerainteractions'); // Tool for making interactive VR elements
+const TextureAnimator = require('./lib/textureanimator');
 const TWEEN = require('tween.js');
 
 // no hsts so just redirect to https
@@ -61,6 +62,8 @@ serviceWorker()
 
 	const textureLoader = new THREE.TextureLoader();
 	const cubeTextureLoader = new THREE.CubeTextureLoader();
+
+	// Select objects from the scene for later processing.
 	const toTexture = threeHelper.pickObjectsHelper(threeHelper.scene, 'Room', 'Counter', 'Cake');
 	const toShiny = threeHelper.pickObjectsHelper(threeHelper.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003', 'Fridge');
 	Object.keys(toTexture).forEach(name => {
@@ -97,8 +100,11 @@ serviceWorker()
 	const ambientLight = new THREE.AmbientLight( 0xcccccc );
 	threeHelper.scene.add( ambientLight );
 
+
+
 	/**
 	 * Add a targeting reticule to the HUD to help align what the user is looking at
+	 * Also add a circular progress bar.
 	 */
 
 	textureLoader.load("images/reticule.png", map => {
@@ -106,6 +112,8 @@ serviceWorker()
 		const sprite = new THREE.Sprite(material);
 		threeHelper.hud.add(sprite);
 	});
+
+
 
 	/**
 	 * Set up interactivity from the camera.
@@ -132,6 +140,7 @@ serviceWorker()
 	.then(function () {
 		
 
+
 		/**
 		 * Main Render Loop
 		 *
@@ -147,27 +156,72 @@ serviceWorker()
 			cameraInteractivityWorld.detectInteractions(threeHelper.camera);
 
 			if (!waitingForPoints) {
-				verlet.getPoints().then(points => {
-					threeHelper.updateObjects(points);
-					waitingForPoints = false;
-				});
+				verlet.getPoints()
+				.then(threeHelper.updateObjects)
+				.then(() => waitingForPoints = false);
 				waitingForPoints = true;
 			}
+			TWEEN.update();
 			threeHelper.render();
-			TWEEN.update(time);
 		});
 
-		function addButton(str) {
-			const sprite = textSprite(str, {
-				fontsize: 18,
-				fontface: 'Iceland',
-				borderThickness: 20
+
+
+		/**
+		 * Add some interactivity
+		 */
+		let loaderSprite;
+
+		textureLoader.load("images/loader.png", map => {
+			const tA = new TextureAnimator(map, 8, 16, 116);
+			const texture = new THREE.SpriteMaterial( { map, fog: false, transparent: true } );
+			loaderSprite = new THREE.Sprite(texture);
+			loaderSprite.animator = tA;
+			loaderSprite.scale.multiplyScalar(0.9);
+			threeHelper.on('prerender', () => {
+				if (loaderSprite.visible) tA.update();
 			});
-			threeHelper.scene.add(sprite);
-			sprite.position.set(5,5,5);
-			sprite.material.transparent = true;
-			return cameraInteractivityWorld.makeTarget(sprite);
+			threeHelper.hud.add(loaderSprite);
+			loaderSprite.visible = false;
+		});
+
+		function showLoader(callback) {
+			if (!loaderSprite) return;
+			loaderSprite.animator.currentTile = 0;
+			loaderSprite.visible = true;
+			loaderSprite.animator.on('finish', () => {
+				hideLoader();
+				callback();
+			});
 		}
+
+		function hideLoader() {
+			if (!loaderSprite) return;
+			loaderSprite.visible = false;
+			loaderSprite.animator.off('finish');
+		}
+
+		const interactiveElements = threeHelper.pickObjectsHelper(threeHelper.scene, 'LeftArrow', 'RightArrow');
+		Object.keys(interactiveElements).forEach(name => {
+			const iEl = cameraInteractivityWorld.makeTarget(interactiveElements[name]);
+			interactiveElements[name] = iEl;
+			const newScale = iEl.object3d.scale.x * 1.1;
+			const tween = new TWEEN.Tween(iEl.object3d.scale)
+				.to({x: newScale, y: newScale, z: newScale }, 400)
+				.repeat(Infinity);
+
+			iEl.on('hoverStart', () => {
+				showLoader(() => iEl.emit('click'));
+				tween.yoyo().start();
+			});
+			iEl.on('hoverOut', () => {
+				hideLoader();
+				tween.stop();
+			});
+			iEl.on('click', hideLoader);
+
+		});
+
 
 	});
 });

@@ -17,36 +17,36 @@ const util = require('util');
  * @param  {[type]} domElement [description]
  * @return {[type]}            [description]
  */
-module.exports = function GoTargetConfig(domElement) {
+module.exports = function CameraInteractivityWorld(domElement) {
 
-	function GoTarget(node) {
+	function InteractivityTarget(node) {
 
 		EventEmitter.call(this);
 
 		this.position = node.position;
 		this.hasHover = false;
-		this.sprite = node;
-		this.sprite.material.opacity = 0.5;
+		this.object3d = node;
 
 		this.on('hover', () => {
+			if (!this.hasHover) {
+				this.emit('hoverStart');
+			}
 			this.hasHover = true;
-			this.sprite.material.opacity = 1;
 		});
 
 		this.on('hoverOut', () => {
 			this.hasHover = false;
-			this.sprite.material.opacity = 0.5;
 		});
 
 		this.hide = () =>{
-			this.sprite.visible = false;
+			this.object3d.visible = false;
 		};
 
 		this.show = () =>{
-			this.sprite.visible = true;
+			this.object3d.visible = true;
 		};
 	}
-	util.inherits(GoTarget, EventEmitter);
+	util.inherits(InteractivityTarget, EventEmitter);
 
 	this.targets = new Map();
 
@@ -56,15 +56,15 @@ module.exports = function GoTargetConfig(domElement) {
 		raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
 		const hits = raycaster.intersectObjects(
 			Array.from(this.targets.values())
-			.map(target => target.sprite)
-			.filter(sprite => sprite.visible)
+			.map(target => target.object3d)
+			.filter(object3d => object3d.visible)
 		);
 
 		let target = false;
 
 		if (hits.length) {
 
-			// Show hidden text sprite child
+			// Show hidden text object3d child
 			target = this.targets.get(hits[0].object);
 			if (target) target.emit('hover');
 		}
@@ -94,7 +94,7 @@ module.exports = function GoTargetConfig(domElement) {
 	domElement.addEventListener('touchdown', interact);
 
 	this.makeTarget = node => {
-		const newTarget = new GoTarget(node);
+		const newTarget = new InteractivityTarget(node);
 		this.targets.set(node, newTarget);
 		return newTarget;
 	};
