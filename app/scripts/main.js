@@ -64,10 +64,10 @@ serviceWorker()
 	const cubeTextureLoader = new THREE.CubeTextureLoader();
 
 	// Select objects from the scene for later processing.
-	const toTexture = threeHelper.pickObjectsHelper(threeHelper.scene, 'Room', 'Counter', 'Cake');
+	const toTexture = threeHelper.pickObjectsHelper(threeHelper.scene, 'Room', 'Counter', 'Cake', 'Swirl.000', 'Swirl.001', 'Swirl.002', 'Swirl.003', 'Swirl.004', 'Swirl.005', 'Swirl.006', 'Swirl.007', 'Swirl.008', 'Swirl.009');
 	const toShiny = threeHelper.pickObjectsHelper(threeHelper.scene, 'LickTheWhisk', 'Whisk', 'SaucePan', 'SaucePan.001', 'SaucePan.002', 'SaucePan.003', 'Fridge');
 	Object.keys(toTexture).forEach(name => {
-		textureLoader.load(`models/Kitchen/${name}Bake.png`, map => toTexture[name].material = new THREE.MeshBasicMaterial({map}));
+		textureLoader.load(`models/Kitchen/${name.split('.')[0]}Bake.png`, map => toTexture[name].material = new THREE.MeshBasicMaterial({map}));
 	});
 
 	const path = "models/Kitchen/envmap/";
@@ -161,7 +161,6 @@ serviceWorker()
 				.then(() => waitingForPoints = false);
 				waitingForPoints = true;
 			}
-			TWEEN.update();
 			threeHelper.render();
 		});
 
@@ -172,6 +171,8 @@ serviceWorker()
 		 */
 		let loaderSprite;
 
+		// Load a loading animation
+		// and then hide it for now
 		textureLoader.load("images/loader.png", map => {
 			const tA = new TextureAnimator(map, 8, 16, 116);
 			const texture = new THREE.SpriteMaterial( { map, fog: false, transparent: true } );
@@ -201,27 +202,66 @@ serviceWorker()
 			loaderSprite.animator.off('finish');
 		}
 
+
+		// Find the empty object where I am putting content
+		const objects = threeHelper.pickObjectsHelper(threeHelper.scene, 'MarkerMain');
+
+		// Make some content
+		const meringue = toTexture['Swirl.000'].clone();
+		objects.MarkerMain.add(meringue);
+		meringue.scale.set(0.4, 0.4, 0.4);
+		meringue.rotateZ(-1.9415926646002635);
+		meringue.position.set(0,0,0);
+
+
+
 		const interactiveElements = threeHelper.pickObjectsHelper(threeHelper.scene, 'LeftArrow', 'RightArrow');
+		interactiveElements.meringue = meringue;
 		Object.keys(interactiveElements).forEach(name => {
 			const iEl = cameraInteractivityWorld.makeTarget(interactiveElements[name]);
 			interactiveElements[name] = iEl;
-			const newScale = iEl.object3d.scale.x * 1.1;
-			const tween = new TWEEN.Tween(iEl.object3d.scale)
-				.to({x: newScale, y: newScale, z: newScale }, 400)
-				.repeat(Infinity);
+			const rot = iEl.object3d.rotation;
+			const sca = iEl.object3d.scale;
+			const tween = new TWEEN.Tween({
+				rX: rot.x,
+				rY: rot.y,
+				rZ: rot.z,
+				sX: sca.x,
+				sY: sca.y,
+				sZ: sca.z,
+			})
+			.to({
+				rZ: rot.z + 0.3,
+				sX: sca.x * 1.1,
+				sY: sca.y * 1.1,
+				sZ: sca.z * 1.1,
+			}, 400)
+			.easing(TWEEN.Easing.Quadratic.InOut)
+			.onUpdate(function () {
+				rot.set(this.rX, this.rY, this.rZ);
+				sca.set(this.sX, this.sY, this.sZ);
+			})
+			.repeat(Infinity)
+			.yoyo(true)
+			.start(0);
 
 			iEl.on('hoverStart', () => {
+
+				// Show the loader and send a click once
+				// the animation has finished.
 				showLoader(() => iEl.emit('click'));
-				tween.yoyo().start();
 			});
+
 			iEl.on('hoverOut', () => {
 				hideLoader();
-				tween.stop();
 			});
+			let t = 2;
+			iEl.on('hover', () => {
+				tween.update(16*++t);
+			});
+
 			iEl.on('click', hideLoader);
-
-		});
-
+		}); 
 
 	});
 });
