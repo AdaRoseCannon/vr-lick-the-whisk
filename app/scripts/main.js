@@ -57,6 +57,11 @@ serviceWorker()
 	console.log('Ready');
 
 	/**
+	 * Setup Click listener for fullscreen
+	 */
+	threeHelper.domElement.addEventListener('click', threeHelper.fullscreen);
+
+	/**
 	 * Update textures to Baked ones and add envmap
 	 */
 
@@ -216,7 +221,14 @@ serviceWorker()
 
 
 		const interactiveElements = threeHelper.pickObjectsHelper(threeHelper.scene, 'LeftArrow', 'RightArrow');
+		const meringueLabel = textSprite('MERINGUE', {
+			borderThickness: 20,
+			fontface: 'Biryani'
+		});
+		meringue.add(meringueLabel);
+		meringueLabel.position.z += 1;
 		interactiveElements.meringue = meringue;
+
 		Object.keys(interactiveElements).forEach(name => {
 			const iEl = cameraInteractivityWorld.makeTarget(interactiveElements[name]);
 			interactiveElements[name] = iEl;
@@ -262,6 +274,16 @@ serviceWorker()
 
 			iEl.on('click', hideLoader);
 		}); 
+
+		interactiveElements.meringue.on('click', function () {
+			const sprite = textSprite('Loading Recipe...', {
+				borderThickness: 20,
+				size: 0.5,
+				fontface: 'Biryani'
+			});
+			objects.MarkerMain.add(sprite);
+			sprite.position.y -= 1;
+		});
 
 	});
 });

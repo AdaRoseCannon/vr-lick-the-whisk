@@ -122,7 +122,7 @@ function MyThreeHelper(options){
 	 */
 
 	const setAspect = () => {
-		this.renderMethod.setSize( options.target.scrollWidth, options.target.scrollHeight );
+		this.renderMethod.setSize( options.target.clientWidth, options.target.clientHeight );
 		this.camera.aspect = options.target.scrollWidth / options.target.scrollHeight;
 		this.camera.updateProjectionMatrix();
 	};
