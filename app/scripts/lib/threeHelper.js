@@ -100,7 +100,7 @@ function MyThreeHelper(options){
 	 * Set up camera either one from the scene or make a new one
 	 */
 	
-	let camera = options.camera ? pickObjectsHelper(this.scene, options.camera).Camera : undefined;
+	let camera = options.camera ? pickObjectsHelper(this.scene, options.camera)[options.camera] : undefined;
 
 	if (!camera) {
 		console.log(camera);
@@ -212,6 +212,21 @@ function MyThreeHelper(options){
 		this.scene.add(mesh);
 	};
 
+	/**
+	 * A function for going fullscreen
+	 */
+	
+	this.fullscreen = function () {
+		if (options.target.requestFullscreen) {
+			options.target.requestFullscreen();
+		} else if (options.target.msRequestFullscreen) {
+			options.target.msRequestFullscreen();
+		} else if (options.target.mozRequestFullScreen) {
+			options.target.mozRequestFullScreen();
+		} else if (options.target.webkitRequestFullscreen) {
+			options.target.webkitRequestFullscreen();
+		}
+	};
 
 
 	/**
