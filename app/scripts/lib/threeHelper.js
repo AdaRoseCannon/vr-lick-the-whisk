@@ -48,7 +48,7 @@ function pickObjectsHelper(root, ...namesIn) {
 /**
  * Load the scene with file name id and return the helper
  */
-function myThreeFromJSON(id, options) {
+function myThreeFromJSON(id, options={}) {
 	return loadScene(id).then(scene => {
 		options.scene = scene;
 		return new MyThreeHelper(options);
@@ -70,6 +70,7 @@ function MyThreeHelper(options){
 
 	const renderer = new THREE.WebGLRenderer( { antialias: false } );
 	renderer.setPixelRatio( window.devicePixelRatio );
+	this.renderer = renderer;
 
 	options.target.appendChild(renderer.domElement);
 	this.domElement = renderer.domElement;

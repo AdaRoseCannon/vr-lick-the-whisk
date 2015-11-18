@@ -56,6 +56,8 @@ serviceWorker()
 .then(threeHelper => {
 	console.log('Ready');
 
+	threeHelper.renderer.setClearColor(0x8bb6ed);
+
 	/**
 	 * Setup Click listener for fullscreen
 	 */
